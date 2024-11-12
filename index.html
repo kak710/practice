@@ -5,11 +5,11 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-  <!-- A-Frame Library -->
-  <script src="https://aframe.io/releases/1.2.0/aframe.min.js"></script>
+  <!-- Updated A-Frame Library -->
+  <script src="https://aframe.io/releases/1.4.1/aframe.min.js"></script>
 
-  <!-- MindAR Library -->
-  <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.1.5/dist/mindar-image-aframe.prod.js"></script>
+  <!-- Updated MindAR Library -->
+  <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.1.7/dist/mindar-image-aframe.prod.js"></script>
 
   <style>
     body, html {
@@ -85,9 +85,8 @@
     mindar-image="imageTargetSrc: ./assets/targets.mind; autoStart: true;"
     embedded
     color-space="sRGB"
-    renderer="antialias: true; alpha: true"
+    renderer="antialias: true; alpha: true; precision: mediump;"
     vr-mode-ui="enabled: false"
-    device-orientation-permission-ui="enabled: true"
   >
     <!-- Image Target Entity -->
     <a-entity mindar-image-target="targetIndex: 0" targethandler>
@@ -112,8 +111,8 @@
       ></a-text>
     </a-entity>
 
-    <!-- Camera Entity -->
-    <a-camera></a-camera>
+    <!-- Corrected Camera Entity -->
+    <a-entity camera></a-entity>
   </a-scene>
 </body>
 </html>
