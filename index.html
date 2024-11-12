@@ -53,10 +53,11 @@
       AFRAME.registerComponent('color-changer', {
         init: function() {
           const ring = this.el;
-          // Start the first animation
+
+          // Start the first color animation
           ring.emit('startAnimation');
 
-          // Listen for animation completion events to chain animations
+          // Listen for animation completion to chain next animation
           ring.addEventListener('animationcomplete__1', () => {
             ring.emit('nextAnimation');
           });
