@@ -1,114 +1,124 @@
 <!DOCTYPE html>
 <html>
-  <head>
-    <title>AR.js with Custom Marker and RGB Ring</title>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
-    
-    <!-- A-Frame Library -->
-    <script src="https://aframe.io/releases/1.3.0/aframe.min.js"></script>
-    
-    <!-- AR.js Library -->
-    <script src="https://cdn.jsdelivr.net/gh/AR-js-org/AR.js@3.3.2/aframe/build/aframe-ar.js"></script>
-    
-    <style>
-      body, html { 
-        margin: 0; 
-        overflow: hidden; 
-        font-family: sans-serif; 
+<head>
+  <title>Image Tracking with MindAR and RGB Ring</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+
+  <!-- A-Frame Library -->
+  <script src="https://aframe.io/releases/1.3.0/aframe.min.js"></script>
+
+  <!-- MindAR Library -->
+  <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.1.5/dist/mindar-image-aframe.prod.js"></script>
+
+  <style>
+    body, html { 
+      margin: 0; 
+      overflow: hidden; 
+      font-family: sans-serif; 
+    }
+    #instructions {
+      position: absolute;
+      top: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(255, 255, 255, 0.8);
+      padding: 10px;
+      z-index: 1;
+      border-radius: 8px;
+    }
+  </style>
+
+  <!-- Register Custom Components -->
+  <script>
+    // Marker Handler Component (Adjusted for MindAR)
+    AFRAME.registerComponent('targethandler', {
+      init: function() {
+        const targetEntity = this.el;
+        const instructions = document.getElementById('instructions');
+
+        targetEntity.addEventListener('targetFound', () => {
+          console.log('Target Found');
+          instructions.style.display = 'none'; // Hide instructions when image target is found
+        });
+
+        targetEntity.addEventListener('targetLost', () => {
+          console.log('Target Lost');
+          instructions.style.display = 'block'; // Show instructions when image target is lost
+        });
       }
-      #instructions {
-        position: absolute;
-        top: 10px;
-        left: 50%;
-        transform: translateX(-50%);
-        background: rgba(255, 255, 255, 0.8);
-        padding: 10px;
-        z-index: 1;
-        border-radius: 8px;
-      }
-    </style>
+    });
 
-    <!-- Register Custom Components -->
-    <script>
-      // Marker Handler Component
-      AFRAME.registerComponent('markerhandler', {
-        init: function() {
-          const marker = this.el;
-          const instructions = document.getElementById('instructions');
+    // Color Changer Component for RGB Ring (Same as before)
+    AFRAME.registerComponent('color-changer', {
+      init: function() {
+        const ring = this.el;
 
-          marker.addEventListener('markerFound', () => {
-            console.log('Marker Found');
-            instructions.style.display = 'none'; // Hide instructions when marker is found
-          });
+        // Start the first color animation
+        ring.emit('startAnimation');
 
-          marker.addEventListener('markerLost', () => {
-            console.log('Marker Lost');
-            instructions.style.display = 'block'; // Show instructions when marker is lost
-          });
-        }
-      });
+        // Listen for animation completion to chain next animation
+        ring.addEventListener('animationcomplete__1', () => {
+          ring.emit('nextAnimation');
+        });
 
-      // Color Changer Component for RGB Ring
-      AFRAME.registerComponent('color-changer', {
-        init: function() {
-          const ring = this.el;
+        ring.addEventListener('animationcomplete__2', () => {
+          ring.emit('finalAnimation');
+        });
 
-          // Start the first color animation
+        ring.addEventListener('animationcomplete__3', () => {
           ring.emit('startAnimation');
+        });
+      }
+    });
+  </script>
+</head>
+<body>
+  <!-- Instructions for Users -->
+  <div id="instructions">
+    <p>Please point your camera at the 
+      <a href="images/your-image-target.png" target="_blank">image target</a>.
+    </p>
+  </div>
 
-          // Listen for animation completion to chain next animation
-          ring.addEventListener('animationcomplete__1', () => {
-            ring.emit('nextAnimation');
-          });
+  <a-scene
+    mindar-image="imageTargetSrc: ./assets/targets.mind; autoStart: true;"
+    embedded
+    color-space="sRGB"
+    renderer="antialias: true; alpha: true"
+    vr-mode-ui="enabled: false"
+    device-orientation-permission-ui="enabled: true"
+  >
+    <!-- Assets -->
+    <a-assets>
+      <!-- Add any assets like models or images here -->
+    </a-assets>
 
-          ring.addEventListener('animationcomplete__2', () => {
-            ring.emit('finalAnimation');
-          });
+    <!-- Image Target Entity -->
+    <a-entity mindar-image-target="targetIndex: 0" targethandler>
+      <!-- RGB Ring -->
+      <a-entity
+        id="ring"
+        geometry="primitive: torus; radius: 0.7; radiusTubular: 0.1;"
+        material="shader: flat; color: #FF0000;"
+        rotation="-90 0 0"
+        animation__1="property: material.color; to: #00FF00; dur: 2000; startEvents: startAnimation; easing: linear; loop: false"
+        animation__2="property: material.color; to: #0000FF; dur: 2000; startEvents: nextAnimation; easing: linear; loop: false"
+        animation__3="property: material.color; to: #FF0000; dur: 2000; startEvents: finalAnimation; easing: linear; loop: false"
+        color-changer
+      ></a-entity>
+      <!-- Text Entity -->
+      <a-text
+        value="Image Detected!"
+        position="0 1 0"
+        align="center"
+        color="#FFFFFF"
+        scale="0.5 0.5 0.5"
+      ></a-text>
+    </a-entity>
 
-          ring.addEventListener('animationcomplete__3', () => {
-            ring.emit('startAnimation');
-          });
-        }
-      });
-    </script>
-  </head>
-  <body>
-    <!-- Instructions for Users -->
-    <div id="instructions">
-      <p>Please point your camera at the 
-        <a href="markers/my-marker-image.png" target="_blank">custom marker</a>.
-      </p>
-    </div>
-
-    <a-scene
-      embedded
-      arjs="trackingMethod: best; sourceType: webcam; debugUIEnabled: false;"
-    >
-      <!-- Custom Marker Entity -->
-      <a-marker type="pattern" url="markers/my-marker.patt" markerhandler>
-        <!-- RGB Ring -->
-        <a-entity
-          id="ring"
-          geometry="primitive: torus; radius: 0.7; radiusTubular: 0.1;"
-          material="shader: flat; color: #FF0000;"
-          rotation="90 0 0"
-          animation__1="property: material.color; to: #00FF00; dur: 2000; startEvents: startAnimation; easing: linear; loop: false"
-          animation__2="property: material.color; to: #0000FF; dur: 2000; startEvents: nextAnimation; easing: linear; loop: false"
-          animation__3="property: material.color; to: #FF0000; dur: 2000; startEvents: finalAnimation; easing: linear; loop: false"
-          color-changer
-        ></a-entity>
-        <!-- Text Entity -->
-        <a-text
-          value="Marker Detected!"
-          position="0 1 0"
-          align="center"
-          color="#FFFFFF"
-          scale="2 2 2"
-        ></a-text>
-      </a-marker>
-      <!-- Camera Entity -->
-      <a-entity camera></a-entity>
-    </a-scene>
-  </body>
+    <!-- Camera Entity -->
+    <a-camera></a-camera>
+  </a-scene>
+</body>
 </html>
