@@ -4,12 +4,19 @@
     <title>AR.js with Custom Marker and RGB Ring</title>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+    
     <!-- A-Frame Library -->
-    <script src="https://aframe.io/releases/1.3.0/aframe.min.js"></script>
+    <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
+    
     <!-- AR.js Library -->
-    <script src="https://cdn.jsdelivr.net/gh/AR-js-org/AR.js@3.3.2/aframe/build/aframe-ar.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/AR-js-org/AR.js@3.3.2/aframe/build/aframe-ar.js"></script>
+    
     <style>
-      body, html { margin: 0; overflow: hidden; font-family: sans-serif; }
+      body, html { 
+        margin: 0; 
+        overflow: hidden; 
+        font-family: sans-serif; 
+      }
       #instructions {
         position: absolute;
         top: 10px;
@@ -21,46 +28,10 @@
         border-radius: 8px;
       }
     </style>
-  </head>
-  <body>
-    <!-- Instructions for Users -->
-    <div id="instructions">
-      <p>Please point your camera at the <a href="markers/my-marker-image.png" target="_blank">custom marker</a>.</p>
-    </div>
 
-    <a-scene
-      embedded
-      arjs="trackingMethod: best; sourceType: webcam; debugUIEnabled: false;"
-    >
-      <!-- Custom Marker Entity -->
-      <a-marker type="pattern" url="markers/my-marker.patt" markerhandler>
-        <!-- RGB Ring -->
-        <a-entity
-          geometry="primitive: torus; radius: 0.7; radiusTubular: 0.1;"
-          material="shader: flat; color: #FF0000;"
-          animation="property: material.color; dur: 6000; easing: linear; loop: true; from: #FF0000; to: #FF0000; dir: normal;
-            keyframes: [
-              {value: #FF0000; offset: 0},
-              {value: #00FF00; offset: 0.33},
-              {value: #0000FF; offset: 0.66},
-              {value: #FF0000; offset: 1}
-            ]"
-          rotation="90 0 0"
-        ></a-entity>
-        <!-- Text Entity -->
-        <a-text
-          value="Marker Detected!"
-          position="0 1 0"
-          align="center"
-          color="#FFFFFF"
-          scale="2 2 2"
-        ></a-text>
-      </a-marker>
-      <!-- Camera Entity -->
-      <a-entity camera></a-entity>
-    </a-scene>
-
+    <!-- Register Custom Components -->
     <script>
+      // Marker Handler Component
       AFRAME.registerComponent('markerhandler', {
         init: function() {
           const marker = this.el;
@@ -77,6 +48,66 @@
           });
         }
       });
+
+      // Color Changer Component for RGB Ring
+      AFRAME.registerComponent('color-changer', {
+        init: function() {
+          const ring = this.el;
+          // Start the first animation
+          ring.emit('startAnimation');
+
+          // Listen for animation completion events to chain animations
+          ring.addEventListener('animationcomplete__1', () => {
+            ring.emit('nextAnimation');
+          });
+
+          ring.addEventListener('animationcomplete__2', () => {
+            ring.emit('finalAnimation');
+          });
+
+          ring.addEventListener('animationcomplete__3', () => {
+            ring.emit('startAnimation');
+          });
+        }
+      });
     </script>
+  </head>
+  <body>
+    <!-- Instructions for Users -->
+    <div id="instructions">
+      <p>Please point your camera at the 
+        <a href="markers/my-marker-image.png" target="_blank">custom marker</a>.
+      </p>
+    </div>
+
+    <a-scene
+      embedded
+      arjs="trackingMethod: best; sourceType: webcam; debugUIEnabled: false;"
+    >
+      <!-- Custom Marker Entity -->
+      <a-marker type="pattern" url="markers/my-marker.patt" markerhandler>
+        <!-- RGB Ring -->
+        <a-entity
+          id="ring"
+          geometry="primitive: torus; radius: 0.7; radiusTubular: 0.1;"
+          material="shader: flat; color: #FF0000;"
+          rotation="90 0 0"
+          animation__1="property: material.color; to: #00FF00; dur: 2000; startEvents: startAnimation; easing: linear; loop: false"
+          animation__2="property: material.color; to: #0000FF; dur: 2000; startEvents: nextAnimation; easing: linear; loop: false"
+          animation__3="property: material.color; to: #FF0000; dur: 2000; startEvents: finalAnimation; easing: linear; loop: false"
+          color-changer
+        ></a-entity>
+        <!-- Text Entity -->
+        <a-text
+          value="Marker Detected!"
+          position="0 1 0"
+          align="center"
+          color="#FFFFFF"
+          scale="2 2 2"
+        ></a-text>
+      </a-marker>
+      <!-- Camera Entity -->
+      <a-entity camera></a-entity>
+    </a-scene>
   </body>
 </html>
