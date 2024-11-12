@@ -1,118 +1,133 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <title>MindAR Image Tracking with RGB Ring</title>
-  <meta charset="utf-8">
+  <meta charset="UTF-8">
+  <title>Three.js WebXR AR Example</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-  <!-- Updated A-Frame Library -->
-  <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
-
-  <!-- Updated MindAR Library -->
-  <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
-
+  <!-- Include Three.js -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r142/three.min.js"></script>
+  <!-- Include the WebXR polyfill -->
+  <script src="https://cdn.jsdelivr.net/npm/webxr-polyfill@latest/build/webxr-polyfill.min.js"></script>
+  <!-- Include ARButton helper -->
+  <script src="https://threejs.org/examples/jsm/webxr/ARButton.js"></script>
   <style>
-    body, html {
-      margin: 0;
-      overflow: hidden;
-      font-family: sans-serif;
-    }
-    #instructions {
+    body { margin: 0; overflow: hidden; }
+    #info {
       position: absolute;
-      top: 10px;
-      left: 50%;
+      top: 10px; left: 50%;
       transform: translateX(-50%);
       background: rgba(255, 255, 255, 0.8);
       padding: 10px;
-      z-index: 1;
       border-radius: 8px;
+      font-family: sans-serif;
     }
   </style>
-
-  <!-- Register Custom Components -->
-  <script>
-    // Image Target Handler
-    AFRAME.registerComponent('targethandler', {
-      init: function () {
-        const targetEntity = this.el;
-        const instructions = document.getElementById('instructions');
-
-        targetEntity.addEventListener('targetFound', () => {
-          console.log('Target Found');
-          instructions.style.display = 'none'; // Hide instructions when target is found
-        });
-
-        targetEntity.addEventListener('targetLost', () => {
-          console.log('Target Lost');
-          instructions.style.display = 'block'; // Show instructions when target is lost
-        });
-      }
-    });
-
-    // RGB Ring Animation Component
-    AFRAME.registerComponent('color-changer', {
-      init: function () {
-        const ring = this.el;
-
-        // Start the first color animation
-        ring.emit('startAnimation');
-
-        // Chain the animations
-        ring.addEventListener('animationcomplete__1', () => {
-          ring.emit('nextAnimation');
-        });
-
-        ring.addEventListener('animationcomplete__2', () => {
-          ring.emit('finalAnimation');
-        });
-
-        ring.addEventListener('animationcomplete__3', () => {
-          ring.emit('startAnimation');
-        });
-      }
-    });
-  </script>
 </head>
 <body>
-  <!-- Instructions for Users -->
-  <div id="instructions">
-    <p>Point your camera at the 
-      <a href="images/your-image-target.png" target="_blank">image target</a>.
-    </p>
-  </div>
+  <div id="info">Tap 'Enter AR' to start the AR experience.</div>
+  <script>
+    let scene, camera, renderer;
+    let reticle, controller;
+    let hitTestSource = null;
 
-  <a-scene
-    mindar-image="imageTargetSrc: ./assets/targets.mind; autoStart: true;"
-    color-space="sRGB"
-    renderer="colorManagement: true; physicallyCorrectLights"
-    vr-mode-ui="enabled: false"
-    device-orientation-permission-ui="enabled: false"
-  >
-    <!-- Image Target Entity -->
-    <a-entity mindar-image-target="targetIndex: 0" targethandler>
-      <!-- RGB Ring -->
-      <a-entity
-        id="ring"
-        geometry="primitive: torus; radius: 0.7; radiusTubular: 0.1;"
-        material="shader: flat; color: #FF0000;"
-        rotation="-90 0 0"
-        animation__1="property: material.color; to: #00FF00; dur: 2000; startEvents: startAnimation; easing: linear; loop: false"
-        animation__2="property: material.color; to: #0000FF; dur: 2000; startEvents: nextAnimation; easing: linear; loop: false"
-        animation__3="property: material.color; to: #FF0000; dur: 2000; startEvents: finalAnimation; easing: linear; loop: false"
-        color-changer
-      ></a-entity>
-      <!-- Text Entity -->
-      <a-text
-        value="Image Detected!"
-        position="0 1 0"
-        align="center"
-        color="#FFFFFF"
-        scale="0.5 0.5 0.5"
-      ></a-text>
-    </a-entity>
+    init();
+    animate();
 
-    <!-- Camera Entity -->
-    <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
-  </a-scene>
+    function init() {
+      scene = new THREE.Scene();
+
+      camera = new THREE.PerspectiveCamera(
+        70, window.innerWidth / window.innerHeight, 0.01, 20
+      );
+
+      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+      renderer.setPixelRatio(window.devicePixelRatio);
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.xr.enabled = true;
+      document.body.appendChild(renderer.domElement);
+
+      // Add AR button
+      document.body.appendChild(ARButton.createButton(renderer, { requiredFeatures: ['hit-test'] }));
+
+      // Reticle for object placement
+      reticle = new THREE.Mesh(
+        new THREE.RingGeometry(0.05, 0.06, 32).rotateX(-Math.PI / 2),
+        new THREE.MeshBasicMaterial({ color: 0xffffff })
+      );
+      reticle.matrixAutoUpdate = false;
+      reticle.visible = false;
+      scene.add(reticle);
+
+      // Controller for input
+      controller = renderer.xr.getController(0);
+      controller.addEventListener('select', onSelect);
+      scene.add(controller);
+
+      window.addEventListener('resize', onWindowResize, false);
+
+      // Set up the AR session
+      renderer.xr.addEventListener('sessionstart', onSessionStart);
+      renderer.xr.addEventListener('sessionend', onSessionEnd);
+    }
+
+    function onSessionStart() {
+      const session = renderer.xr.getSession();
+      session.addEventListener('select', onSelect);
+
+      session.requestReferenceSpace('viewer').then((referenceSpace) => {
+        session.requestHitTestSource({ space: referenceSpace }).then((source) => {
+          hitTestSource = source;
+        });
+      });
+    }
+
+    function onSessionEnd() {
+      hitTestSource = null;
+    }
+
+    function onSelect() {
+      if (reticle.visible) {
+        const geometry = new THREE.BoxGeometry(0.1, 0.1, 0.1);
+        const material = new THREE.MeshBasicMaterial({ color: Math.random() * 0xffffff });
+        const mesh = new THREE.Mesh(geometry, material);
+
+        mesh.position.setFromMatrixPosition(reticle.matrix);
+        mesh.quaternion.setFromRotationMatrix(reticle.matrix);
+
+        scene.add(mesh);
+      }
+    }
+
+    function animate() {
+      renderer.setAnimationLoop(render);
+    }
+
+    function render(timestamp, frame) {
+      if (frame) {
+        const referenceSpace = renderer.xr.getReferenceSpace();
+        const session = renderer.xr.getSession();
+
+        if (hitTestSource) {
+          const hitTestResults = frame.getHitTestResults(hitTestSource);
+          if (hitTestResults.length > 0) {
+            const hit = hitTestResults[0];
+            const pose = hit.getPose(referenceSpace);
+            reticle.visible = true;
+            reticle.matrix.fromArray(pose.transform.matrix);
+          } else {
+            reticle.visible = false;
+          }
+        }
+      }
+
+      renderer.render(scene, camera);
+    }
+
+    function onWindowResize() {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    }
+  </script>
 </body>
 </html>
