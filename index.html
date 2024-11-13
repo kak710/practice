@@ -19,65 +19,86 @@
         top: 10px;
         left: 50%;
         transform: translateX(-50%);
-        background: rgba(255, 255, 255, 0.8);
-        padding: 10px;
+        background: rgba(0, 0, 0, 0.6);
+        color: #FFFFFF;
+        padding: 10px 20px;
         z-index: 1;
         border-radius: 8px;
+        font-size: 16px;
       }
     </style>
 
     <!-- Register Custom Components -->
     <script>
-      // Custom Hit Test Component
-      AFRAME.registerComponent('xr-hit-test', {
+      AFRAME.registerComponent('ar-hit-test', {
         init: function () {
-          this.reticle = document.getElementById('reticle');
-          this.hitTestSource = null;
-          this.session = null;
-          this.referenceSpace = null;
-
-          // Bind the onXRFrame method to maintain context
-          this.onXRFrame = this.onXRFrame.bind(this);
+          const sceneEl = this.el.sceneEl;
+          const cameraEl = sceneEl.camera.el;
+          const renderer = sceneEl.renderer;
           
-          // Listen for XR session start
-          this.el.sceneEl.renderer.xr.addEventListener('sessionstart', (event) => {
-            this.session = this.el.sceneEl.renderer.xr.getSession();
+          // Create reticle
+          const reticle = document.createElement('a-entity');
+          reticle.setAttribute('geometry', {
+            primitive: 'ring',
+            radiusInner: 0.045,
+            radiusOuter: 0.05
+          });
+          reticle.setAttribute('material', {
+            color: 'green',
+            shader: 'flat'
+          });
+          reticle.setAttribute('visible', 'false');
+          cameraEl.appendChild(reticle);
+          this.reticle = reticle;
 
-            // Request a 'local' reference space for hit-testing
-            this.session.requestReferenceSpace('local').then((refSpace) => {
+          // Variables for hit-test
+          this.hitTestSource = null;
+          this.hitTestSourceRequested = false;
+
+          // Bind the render loop
+          this.onXRFrame = this.onXRFrame.bind(this);
+
+          // Listen for session start
+          renderer.xr.addEventListener('sessionstart', () => {
+            this.session = renderer.xr.getSession();
+            this.referenceSpace = null;
+            this.hitTestSource = null;
+            this.hitTestSourceRequested = false;
+
+            // Request 'viewer' reference space
+            this.session.requestReferenceSpace('viewer').then((refSpace) => {
               this.referenceSpace = refSpace;
-              return this.session.requestHitTestSource({ space: refSpace });
+              return this.session.requestHitTestSource({ space: this.referenceSpace });
             }).then((hitTestSource) => {
               this.hitTestSource = hitTestSource;
             }).catch((err) => {
               console.error('Hit Test not supported', err);
             });
 
-            // Start the XR animation loop
-            this.el.sceneEl.renderer.setAnimationLoop(this.onXRFrame);
+            // Add the render loop
+            renderer.setAnimationLoop(this.onXRFrame);
           });
 
-          // Listen for XR session end
-          this.el.sceneEl.renderer.xr.addEventListener('sessionend', () => {
+          // Listen for session end
+          renderer.xr.addEventListener('sessionend', () => {
             this.hitTestSource = null;
-            this.el.sceneEl.renderer.setAnimationLoop(null);
             this.reticle.setAttribute('visible', 'false');
+            renderer.setAnimationLoop(null);
           });
         },
 
         onXRFrame: function (time, frame) {
-          if (!this.hitTestSource) {
-            return;
-          }
+          if (!this.hitTestSource) return;
 
+          const referenceSpace = this.referenceSpace;
           const hitTestResults = frame.getHitTestResults(this.hitTestSource);
+
           if (hitTestResults.length > 0) {
             const hit = hitTestResults[0];
-            const pose = hit.getPose(this.referenceSpace);
+            const pose = hit.getPose(referenceSpace);
 
             if (pose) {
               const position = pose.transform.position;
-              // Update reticle position
               this.reticle.setAttribute('position', {
                 x: position.x,
                 y: position.y,
@@ -91,9 +112,9 @@
         }
       });
 
-      // Component to handle tap-to-place functionality
       AFRAME.registerComponent('tap-place', {
         init: function () {
+          const sceneEl = this.el.sceneEl;
           const models = [
             'chair.glb',
             'lamp.glb',
@@ -102,12 +123,12 @@
           let selectedModelIndex = 0;
           const numModels = models.length;
 
-          // Add click/touch event listener
-          this.el.sceneEl.addEventListener('click', e => {
-            const reticle = document.getElementById('reticle');
+          // Listen for tap/click events
+          sceneEl.addEventListener('click', (event) => {
+            const reticle = document.querySelector('#reticle');
             if (reticle && reticle.getAttribute('visible') === 'true') {
               const position = reticle.getAttribute('position');
-              const rotation = { x: 0, y: 0, z: 0 }; // Default rotation
+              const rotation = reticle.getAttribute('rotation') || { x: 0, y: 0, z: 0 };
 
               // Create a new model entity
               const model = document.createElement('a-gltf-model');
@@ -115,12 +136,13 @@
               model.setAttribute('position', position);
               model.setAttribute('rotation', rotation);
               model.setAttribute('scale', '0.5 0.5 0.5');
-              model.setAttribute('visible', 'true');
+              model.setAttribute('shadow', 'receive: false; cast: true');
+              model.setAttribute('animation-mixer', '');
 
               // Append the model to the scene
-              this.el.sceneEl.appendChild(model);
+              sceneEl.appendChild(model);
 
-              // Cycle through the models for next placement
+              // Cycle to the next model
               selectedModelIndex = (selectedModelIndex + 1) % numModels;
             }
           });
@@ -135,35 +157,19 @@
     </div>
 
     <a-scene
-      xr-hit-test
+      ar-hit-test
       tap-place
       embedded
-      vr-mode-ui="enabled: false"
-      renderer="antialias: true; colorManagement: true; physicallyCorrectLights"
-      webxr="optionalFeatures: hit-test; requiredFeatures: hit-test,local-floor"
+      renderer="antialias: true; colorManagement: true; physicallyCorrectLights: true"
+      webxr="optionalFeatures: hit-test; requiredFeatures: hit-test; inline: false;"
+      shadow
     >
-      <!-- Reticle for Hit Testing -->
-      <a-entity id="reticle" 
-                position="0 0 0"
-                visible="false">
-        <a-ring 
-          material="color: green; shader: flat;" 
-          radius-inner="0.045" 
-          radius-outer="0.05">
-        </a-ring>
-        <a-cylinder 
-          material="color: green; shader: flat;" 
-          height="0.1" 
-          radius="0.005" 
-          position="0 0.05 0">
-        </a-cylinder>
-      </a-entity>
-
       <!-- Lighting to Enhance Model Appearance -->
       <a-entity light="type: ambient; intensity: 0.5;"></a-entity>
-      <a-entity light="type: directional; intensity: 0.5;" position="0 1 0"></a-entity>
+      <a-entity light="type: directional; intensity: 0.8;" position="1 1 0"></a-entity>
 
+      <!-- Camera -->
+      <a-entity camera></a-entity>
     </a-scene>
-    <a-entity camera></a-entity>
   </body>
 </html>
