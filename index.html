@@ -2,14 +2,18 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8">
-    <title>AR Scene with GLB Model</title>
+    <title>Interactive AR Scene with GLB Model</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <!-- A-Frame Library -->
     <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
     <!-- MindAR Library for A-Frame -->
     <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
-    <!-- Optional: Event Set Component for Interactivity -->
+    <!-- Event Set Component for Interactivity -->
     <script src="https://unpkg.com/aframe-event-set-component@5.0.0/dist/aframe-event-set-component.min.js"></script>
+    <!-- Draggable Component -->
+    <script src="https://unpkg.com/aframe-draggable-component@0.1.0/dist/aframe-draggable-component.min.js"></script>
+    <!-- Gesture Detector Component (Optional) -->
+    <script src="https://unpkg.com/aframe-gesture-detector-component@1.0.0/dist/aframe-gesture-detector-component.min.js"></script>
     <style>
       /* Reset default margins and paddings */
       html, body {
@@ -25,6 +29,21 @@
         height: 100%;
       }
     </style>
+    <script>
+      // Register a component to handle pinch scaling
+      AFRAME.registerComponent('pinch-scale', {
+        init: function () {
+          this.scale = new THREE.Vector3();
+          this.el.addEventListener('gesture-pinch', this.onPinch.bind(this));
+        },
+        onPinch: function (event) {
+          const scaleChange = event.detail.scale;
+          this.scale.copy(this.el.getAttribute('scale'));
+          this.scale.multiplyScalar(scaleChange);
+          this.el.setAttribute('scale', this.scale);
+        }
+      });
+    </script>
   </head>
   <body>
     <a-scene 
@@ -43,7 +62,7 @@
       <!-- AR Target Entity -->
       <a-entity mindar-image-target="targetIndex: 0">
         
-        <!-- 3D GLB Model -->
+        <!-- Interactive 3D GLB Model -->
         <a-entity 
           gltf-model="url(models/your-model.glb)" 
           scale="0.5 0.5 0.5" 
@@ -51,7 +70,10 @@
           rotation="0 180 0"
           animation="property: rotation; to: 0 360 0; loop: true; dur: 10000; easing: linear"
           event-set__mouseenter="scale: 0.6 0.6 0.6"
-          event-set__mouseleave="scale: 0.5 0.5 0.5">
+          event-set__mouseleave="scale: 0.5 0.5 0.5"
+          draggable
+          gesture-detector
+          pinch-scale>
         </a-entity>
         
       </a-entity>
