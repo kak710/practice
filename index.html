@@ -4,16 +4,16 @@
     <meta charset="UTF-8">
     <title>Interactive AR Scene with GLB Model</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    
     <!-- A-Frame Library -->
     <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
+    
     <!-- MindAR Library for A-Frame -->
     <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
-    <!-- Event Set Component for Interactivity -->
-    <script src="https://unpkg.com/aframe-event-set-component@5.0.0/dist/aframe-event-set-component.min.js"></script>
-    <!-- Draggable Component -->
-    <script src="https://unpkg.com/aframe-draggable-component@0.1.0/dist/aframe-draggable-component.min.js"></script>
-    <!-- Gesture Detector Component (Optional) -->
+    
+    <!-- Gesture Detector Component -->
     <script src="https://unpkg.com/aframe-gesture-detector-component@1.0.0/dist/aframe-gesture-detector-component.min.js"></script>
+    
     <style>
       /* Reset default margins and paddings */
       html, body {
@@ -29,28 +29,114 @@
         height: 100%;
       }
     </style>
+    
+    <!-- Custom Components -->
     <script>
-      // Register a component to handle pinch scaling
-      AFRAME.registerComponent('pinch-scale', {
-        init: function () {
-          this.scale = new THREE.Vector3();
-          this.el.addEventListener('gesture-pinch', this.onPinch.bind(this));
+      // Component for handling rotation and scaling via touch gestures
+      AFRAME.registerComponent('model-controls', {
+        schema: {
+          rotationSpeed: { type: 'number', default: 0.1 },
+          minScale: { type: 'number', default: 0.1 },
+          maxScale: { type: 'number', default: 3.0 }
         },
-        onPinch: function (event) {
-          const scaleChange = event.detail.scale;
-          this.scale.copy(this.el.getAttribute('scale'));
-          this.scale.multiplyScalar(scaleChange);
-          this.el.setAttribute('scale', this.scale);
+        init: function () {
+          const el = this.el;
+          let isDragging = false;
+          let initialTouch = null;
+          let initialRotation = { x: 0, y: 0, z: 0 };
+          
+          // Handle single touch for rotation
+          el.addEventListener('touchstart', (event) => {
+            if (event.touches.length === 1) {
+              isDragging = true;
+              initialTouch = { x: event.touches[0].clientX, y: event.touches[0].clientY };
+              const currentRotation = el.getAttribute('rotation');
+              initialRotation = { ...currentRotation };
+              // Disable animation during manual interaction
+              el.setAttribute('animation__rotate', 'enabled', false);
+            }
+          });
+          
+          el.addEventListener('touchmove', (event) => {
+            if (isDragging && event.touches.length === 1) {
+              const touch = event.touches[0];
+              const deltaX = touch.clientX - initialTouch.x;
+              const deltaY = touch.clientY - initialTouch.y;
+              initialTouch = { x: touch.clientX, y: touch.clientY };
+              
+              // Update rotation based on touch movement
+              const rotation = {
+                x: initialRotation.x + deltaY * this.data.rotationSpeed,
+                y: initialRotation.y + deltaX * this.data.rotationSpeed,
+                z: initialRotation.z
+              };
+              el.setAttribute('rotation', rotation);
+            }
+          });
+          
+          el.addEventListener('touchend', (event) => {
+            if (event.touches.length === 0) {
+              isDragging = false;
+              // Re-enable rotation animation
+              el.setAttribute('animation__rotate', 'enabled', true);
+            }
+          });
+          
+          // Handle pinch to scale
+          let initialDistance = null;
+          let initialScale = { x: 1, y: 1, z: 1 };
+          
+          el.addEventListener('gesture-pinch', (event) => {
+            if (event.detail.state === 'start') {
+              initialDistance = event.detail.distance;
+              initialScale = { ...el.getAttribute('scale') };
+            } else if (event.detail.state === 'change') {
+              if (initialDistance) {
+                const currentDistance = event.detail.distance;
+                const scaleFactor = currentDistance / initialDistance;
+                let newScale = {
+                  x: initialScale.x * scaleFactor,
+                  y: initialScale.y * scaleFactor,
+                  z: initialScale.z * scaleFactor
+                };
+                
+                // Clamp the scale values to prevent extreme scaling
+                newScale.x = Math.min(Math.max(newScale.x, this.data.minScale), this.data.maxScale);
+                newScale.y = Math.min(Math.max(newScale.y, this.data.minScale), this.data.maxScale);
+                newScale.z = Math.min(Math.max(newScale.z, this.data.minScale), this.data.maxScale);
+                
+                el.setAttribute('scale', newScale);
+              }
+            } else if (event.detail.state === 'end') {
+              initialDistance = null;
+              initialScale = { x: 1, y: 1, z: 1 };
+            }
+          });
+        }
+      });
+      
+      // Component for visual feedback on touch
+      AFRAME.registerComponent('highlight-on-touch', {
+        init: function () {
+          const el = this.el;
+          el.addEventListener('touchstart', () => {
+            el.setAttribute('material', 'color', '#FFD700'); // Gold color on touch
+          });
+          el.addEventListener('touchend', () => {
+            el.setAttribute('material', 'color', '#FFFFFF'); // Revert to white
+          });
         }
       });
     </script>
   </head>
+  
   <body>
-    <a-scene 
-      mindar-image="imageTargetSrc: ./targets(3).mind;" 
-      vr-mode-ui="enabled: false" 
+    <a-scene
+      mindar-image="imageTargetSrc: ./targets(3).mind;"
+      vr-mode-ui="enabled: false"
       device-orientation-permission-ui="enabled: false"
-      renderer="colorManagement: true; physicallyCorrectLights: true; antialias: true">
+      renderer="colorManagement: true; physicallyCorrectLights: true; antialias: true"
+      gesture-detector>
       
       <!-- Camera Setup -->
       <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
@@ -59,21 +145,27 @@
       <a-ambient-light color="#FFFFFF" intensity="0.5"></a-ambient-light>
       <a-point-light position="2 4 4" intensity="1"></a-point-light>
       
+      <!-- Instructional Overlay -->
+      <a-entity 
+        geometry="primitive: plane; width: 1.5; height: 0.3" 
+        material="color: #000000; opacity: 0.6"
+        position="0 1.5 -1"
+        text="value: Drag to rotate | Pinch to scale; color: #FFFFFF; align: center">
+      </a-entity>
+      
       <!-- AR Target Entity -->
       <a-entity mindar-image-target="targetIndex: 0">
         
         <!-- Interactive 3D GLB Model -->
         <a-entity 
           gltf-model="url(models/your-model.glb)" 
+          id="interactive-model"
           scale="0.5 0.5 0.5" 
           position="0 0 0" 
           rotation="0 180 0"
-          animation="property: rotation; to: 0 360 0; loop: true; dur: 10000; easing: linear"
-          event-set__mouseenter="scale: 0.6 0.6 0.6"
-          event-set__mouseleave="scale: 0.5 0.5 0.5"
-          draggable
-          gesture-detector
-          pinch-scale>
+          model-controls
+          highlight-on-touch
+          animation__rotate="property: rotation; to: 0 360 0; loop: true; dur: 20000; easing: linear">
         </a-entity>
         
       </a-entity>
