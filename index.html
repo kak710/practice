@@ -30,124 +30,131 @@
 
     <!-- Register Custom Components -->
     <script>
-      AFRAME.registerComponent('ar-hit-test', {
-        init: function () {
-          const sceneEl = this.el.sceneEl;
-          const cameraEl = sceneEl.camera.el;
-          const renderer = sceneEl.renderer;
-          
-          // Create reticle
-          const reticle = document.createElement('a-entity');
-          reticle.setAttribute('geometry', {
-            primitive: 'ring',
-            radiusInner: 0.045,
-            radiusOuter: 0.05
-          });
-          reticle.setAttribute('material', {
-            color: 'green',
-            shader: 'flat'
-          });
-          reticle.setAttribute('visible', 'false');
-          cameraEl.appendChild(reticle);
-          this.reticle = reticle;
+      // Prevent multiple registrations of 'ar-hit-test' component
+      if (!AFRAME.components['ar-hit-test']) {
+        AFRAME.registerComponent('ar-hit-test', {
+          init: function () {
+            const sceneEl = this.el.sceneEl;
+            const renderer = sceneEl.renderer;
+            
+            // Create reticle if it doesn't exist
+            let reticle = document.getElementById('reticle');
+            if (!reticle) {
+              reticle = document.createElement('a-entity');
+              reticle.setAttribute('id', 'reticle');
+              reticle.setAttribute('geometry', {
+                primitive: 'ring',
+                radiusInner: 0.045,
+                radiusOuter: 0.05
+              });
+              reticle.setAttribute('material', {
+                color: 'green',
+                shader: 'flat'
+              });
+              reticle.setAttribute('visible', 'false');
+              sceneEl.appendChild(reticle);
+            }
+            this.reticle = reticle;
 
-          // Variables for hit-test
-          this.hitTestSource = null;
-          this.hitTestSourceRequested = false;
-
-          // Bind the render loop
-          this.onXRFrame = this.onXRFrame.bind(this);
-
-          // Listen for session start
-          renderer.xr.addEventListener('sessionstart', () => {
-            this.session = renderer.xr.getSession();
-            this.referenceSpace = null;
+            // Variables for hit-test
             this.hitTestSource = null;
-            this.hitTestSourceRequested = false;
 
-            // Request 'viewer' reference space
-            this.session.requestReferenceSpace('viewer').then((refSpace) => {
-              this.referenceSpace = refSpace;
-              return this.session.requestHitTestSource({ space: this.referenceSpace });
-            }).then((hitTestSource) => {
-              this.hitTestSource = hitTestSource;
-            }).catch((err) => {
-              console.error('Hit Test not supported', err);
+            // Bind the render loop
+            this.onXRFrame = this.onXRFrame.bind(this);
+
+            // Listen for XR session start
+            renderer.xr.addEventListener('sessionstart', () => {
+              this.session = renderer.xr.getSession();
+              this.referenceSpace = null;
+              this.hitTestSource = null;
+
+              // Request 'viewer' reference space
+              this.session.requestReferenceSpace('viewer').then((refSpace) => {
+                this.referenceSpace = refSpace;
+                return this.session.requestHitTestSource({ space: this.referenceSpace });
+              }).then((hitTestSource) => {
+                this.hitTestSource = hitTestSource;
+              }).catch((err) => {
+                console.error('Hit Test not supported', err);
+              });
+
+              // Start the XR animation loop
+              renderer.setAnimationLoop(this.onXRFrame);
             });
 
-            // Add the render loop
-            renderer.setAnimationLoop(this.onXRFrame);
-          });
+            // Listen for XR session end
+            renderer.xr.addEventListener('sessionend', () => {
+              this.hitTestSource = null;
+              this.reticle.setAttribute('visible', 'false');
+              renderer.setAnimationLoop(null);
+            });
+          },
 
-          // Listen for session end
-          renderer.xr.addEventListener('sessionend', () => {
-            this.hitTestSource = null;
-            this.reticle.setAttribute('visible', 'false');
-            renderer.setAnimationLoop(null);
-          });
-        },
+          onXRFrame: function (time, frame) {
+            if (!this.hitTestSource) return;
 
-        onXRFrame: function (time, frame) {
-          if (!this.hitTestSource) return;
+            const referenceSpace = this.referenceSpace;
+            const hitTestResults = frame.getHitTestResults(this.hitTestSource);
 
-          const referenceSpace = this.referenceSpace;
-          const hitTestResults = frame.getHitTestResults(this.hitTestSource);
+            if (hitTestResults.length > 0) {
+              const hit = hitTestResults[0];
+              const pose = hit.getPose(referenceSpace);
 
-          if (hitTestResults.length > 0) {
-            const hit = hitTestResults[0];
-            const pose = hit.getPose(referenceSpace);
-
-            if (pose) {
-              const position = pose.transform.position;
-              this.reticle.setAttribute('position', {
-                x: position.x,
-                y: position.y,
-                z: position.z
-              });
-              this.reticle.setAttribute('visible', 'true');
+              if (pose) {
+                const position = pose.transform.position;
+                this.reticle.setAttribute('position', {
+                  x: position.x,
+                  y: position.y,
+                  z: position.z
+                });
+                this.reticle.setAttribute('visible', 'true');
+              }
+            } else {
+              this.reticle.setAttribute('visible', 'false');
             }
-          } else {
-            this.reticle.setAttribute('visible', 'false');
           }
-        }
-      });
+        });
+      }
 
-      AFRAME.registerComponent('tap-place', {
-        init: function () {
-          const sceneEl = this.el.sceneEl;
-          const models = [
-            'chair.glb',
-            'lamp.glb',
-            'table.glb'
-          ];
-          let selectedModelIndex = 0;
-          const numModels = models.length;
+      // Prevent multiple registrations of 'tap-place' component
+      if (!AFRAME.components['tap-place']) {
+        AFRAME.registerComponent('tap-place', {
+          init: function () {
+            const sceneEl = this.el.sceneEl;
+            const models = [
+              'chair.glb',
+              'lamp.glb',
+              'table.glb'
+            ];
+            let selectedModelIndex = 0;
+            const numModels = models.length;
 
-          // Listen for tap/click events
-          sceneEl.addEventListener('click', (event) => {
-            const reticle = document.querySelector('#reticle');
-            if (reticle && reticle.getAttribute('visible') === 'true') {
-              const position = reticle.getAttribute('position');
-              const rotation = reticle.getAttribute('rotation') || { x: 0, y: 0, z: 0 };
+            // Listen for tap/click events
+            sceneEl.addEventListener('click', (event) => {
+              const reticle = document.querySelector('#reticle');
+              if (reticle && reticle.getAttribute('visible') === 'true') {
+                const position = reticle.getAttribute('position');
+                const rotation = { x: 0, y: 0, z: 0 }; // Default rotation
 
-              // Create a new model entity
-              const model = document.createElement('a-gltf-model');
-              model.setAttribute('src', `models/${models[selectedModelIndex]}`);
-              model.setAttribute('position', position);
-              model.setAttribute('rotation', rotation);
-              model.setAttribute('scale', '0.5 0.5 0.5');
-              model.setAttribute('shadow', 'receive: false; cast: true');
-              model.setAttribute('animation-mixer', '');
+                // Create a new model entity
+                const model = document.createElement('a-gltf-model');
+                model.setAttribute('src', `models/${models[selectedModelIndex]}`);
+                model.setAttribute('position', position);
+                model.setAttribute('rotation', rotation);
+                model.setAttribute('scale', '0.5 0.5 0.5');
+                model.setAttribute('shadow', 'receive: false; cast: true');
+                model.setAttribute('animation-mixer', '');
 
-              // Append the model to the scene
-              sceneEl.appendChild(model);
+                // Append the model to the scene
+                sceneEl.appendChild(model);
 
-              // Cycle to the next model
-              selectedModelIndex = (selectedModelIndex + 1) % numModels;
-            }
-          });
-        }
-      });
+                // Cycle to the next model
+                selectedModelIndex = (selectedModelIndex + 1) % numModels;
+              }
+            });
+          }
+        });
+      }
     </script>
   </head>
   <body>
@@ -161,9 +168,11 @@
       tap-place
       embedded
       renderer="antialias: true; colorManagement: true; physicallyCorrectLights: true"
-      webxr="optionalFeatures: hit-test; requiredFeatures: hit-test; inline: false;"
+      webxr="optionalFeatures: hit-test; requiredFeatures: hit-test; local-floor"
       shadow
     >
+      <!-- Reticle is managed by ar-hit-test component and has id 'reticle' -->
+      
       <!-- Lighting to Enhance Model Appearance -->
       <a-entity light="type: ambient; intensity: 0.5;"></a-entity>
       <a-entity light="type: directional; intensity: 0.8;" position="1 1 0"></a-entity>
