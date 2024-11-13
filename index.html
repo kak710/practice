@@ -1,20 +1,36 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
   <head>
     <meta charset="UTF-8">
     <title>AR Scene with GLB Model</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <!-- A-Frame Library -->
     <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
     <!-- MindAR Library for A-Frame -->
     <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
+    <!-- Optional: Event Set Component for Interactivity -->
+    <script src="https://unpkg.com/aframe-event-set-component@5.0.0/dist/aframe-event-set-component.min.js"></script>
+    <style>
+      /* Reset default margins and paddings */
+      html, body {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden; /* Prevent scrolling */
+      }
+      /* Ensure the A-Frame scene fills the entire viewport */
+      a-scene {
+        width: 100%;
+        height: 100%;
+      }
+    </style>
   </head>
   <body>
     <a-scene 
       mindar-image="imageTargetSrc: ./targets(3).mind;" 
       vr-mode-ui="enabled: false" 
       device-orientation-permission-ui="enabled: false"
-      embedded
       renderer="colorManagement: true; physicallyCorrectLights: true; antialias: true">
       
       <!-- Camera Setup -->
@@ -29,11 +45,13 @@
         
         <!-- 3D GLB Model -->
         <a-entity 
-          gltf-model="url(models/your-model.gltf)" 
+          gltf-model="url(models/your-model.glb)" 
           scale="0.5 0.5 0.5" 
           position="0 0 0" 
           rotation="0 180 0"
-          animation="property: rotation; to: 0 360 0; loop: true; dur: 10000; easing: linear">
+          animation="property: rotation; to: 0 360 0; loop: true; dur: 10000; easing: linear"
+          event-set__mouseenter="scale: 0.6 0.6 0.6"
+          event-set__mouseleave="scale: 0.5 0.5 0.5">
         </a-entity>
         
       </a-entity>
