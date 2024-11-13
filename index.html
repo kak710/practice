@@ -40,15 +40,18 @@
           const numModels = models.length;
 
           // Add click event listener
-          window.addEventListener('click', e => {
+          this.el.sceneEl.addEventListener('click', e => {
             const reticle = document.getElementById('reticle');
             if (reticle && reticle.getAttribute('visible')) {
               const position = reticle.getAttribute('position');
-              const model = models[selectedModelIndex];
+              const rotation = reticle.getAttribute('rotation');
+              const model = models[selectedModelIndex].cloneNode(true);
 
-              // Set model position and make it visible
+              // Set model position, rotation, and make it visible
               model.setAttribute('position', position);
+              model.setAttribute('rotation', rotation);
               model.setAttribute('visible', 'true');
+              this.el.sceneEl.appendChild(model);
 
               // Cycle through the models
               selectedModelIndex = (selectedModelIndex + 1) % numModels;
@@ -68,7 +71,7 @@
       embedded
       vr-mode-ui="enabled: false"
       renderer="antialias: true; colorManagement: true; physicallyCorrectLights"
-      webxr="optionalFeatures: hit-test;"
+      webxr="optionalFeatures: hit-test; requiredFeatures: hit-test,local-floor"
       tap-place
     >
       <!-- Reticle for hit testing -->
@@ -81,13 +84,17 @@
       </a-entity>
 
       <!-- Furniture Models -->
-      <!-- Initially hidden, will be shown when placed -->
+      <!-- These are templates and will be cloned upon placement -->
       <!-- Chair Model -->
-      <a-gltf-model class="model" src="models/chair.glb" visible="false" scale="0.5 0.5 0.5"></a-gltf-model>
+      <a-gltf-model id="chairModel" class="model" src="models/chair.glb" visible="false" scale="0.5 0.5 0.5"></a-gltf-model>
       <!-- Lamp Model -->
-      <a-gltf-model class="model" src="models/lamp.glb" visible="false" scale="0.5 0.5 0.5"></a-gltf-model>
+      <a-gltf-model id="lampModel" class="model" src="models/lamp.glb" visible="false" scale="0.5 0.5 0.5"></a-gltf-model>
       <!-- Table Model -->
-      <a-gltf-model class="model" src="models/table.glb" visible="false" scale="0.5 0.5 0.5"></a-gltf-model>
+      <a-gltf-model id="tableModel" class="model" src="models/table.glb" visible="false" scale="0.5 0.5 0.5"></a-gltf-model>
+
+      <!-- Lighting (optional but enhances model appearance) -->
+      <a-entity light="type: ambient; intensity: 0.5;"></a-entity>
+      <a-entity light="type: directional; intensity: 0.5;" position="0 1 0"></a-entity>
 
       <!-- Camera -->
       <a-entity camera></a-entity>
