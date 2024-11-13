@@ -8,9 +8,6 @@
     <!-- A-Frame Library -->
     <script src="https://aframe.io/releases/1.3.0/aframe.min.js"></script>
     
-    <!-- A-Frame AR Hit Test Component -->
-    <script src="https://cdn.jsdelivr.net/npm/aframe-ar-hit-test-component@1.0.0/dist/aframe-ar-hit-test-component.min.js"></script>
-    
     <style>
       body, html { 
         margin: 0; 
@@ -31,29 +28,99 @@
 
     <!-- Register Custom Components -->
     <script>
+      // Custom Hit Test Component
+      AFRAME.registerComponent('xr-hit-test', {
+        init: function () {
+          this.reticle = document.getElementById('reticle');
+          this.hitTestSource = null;
+          this.session = null;
+          this.referenceSpace = null;
+
+          // Bind the onXRFrame method to maintain context
+          this.onXRFrame = this.onXRFrame.bind(this);
+          
+          // Listen for XR session start
+          this.el.sceneEl.renderer.xr.addEventListener('sessionstart', (event) => {
+            this.session = this.el.sceneEl.renderer.xr.getSession();
+
+            // Request a 'local' reference space for hit-testing
+            this.session.requestReferenceSpace('local').then((refSpace) => {
+              this.referenceSpace = refSpace;
+              return this.session.requestHitTestSource({ space: refSpace });
+            }).then((hitTestSource) => {
+              this.hitTestSource = hitTestSource;
+            }).catch((err) => {
+              console.error('Hit Test not supported', err);
+            });
+
+            // Start the XR animation loop
+            this.el.sceneEl.renderer.setAnimationLoop(this.onXRFrame);
+          });
+
+          // Listen for XR session end
+          this.el.sceneEl.renderer.xr.addEventListener('sessionend', () => {
+            this.hitTestSource = null;
+            this.el.sceneEl.renderer.setAnimationLoop(null);
+            this.reticle.setAttribute('visible', 'false');
+          });
+        },
+
+        onXRFrame: function (time, frame) {
+          if (!this.hitTestSource) {
+            return;
+          }
+
+          const hitTestResults = frame.getHitTestResults(this.hitTestSource);
+          if (hitTestResults.length > 0) {
+            const hit = hitTestResults[0];
+            const pose = hit.getPose(this.referenceSpace);
+
+            if (pose) {
+              const position = pose.transform.position;
+              // Update reticle position
+              this.reticle.setAttribute('position', {
+                x: position.x,
+                y: position.y,
+                z: position.z
+              });
+              this.reticle.setAttribute('visible', 'true');
+            }
+          } else {
+            this.reticle.setAttribute('visible', 'false');
+          }
+        }
+      });
+
       // Component to handle tap-to-place functionality
       AFRAME.registerComponent('tap-place', {
         init: function () {
-          const ground = this.el;
-          const models = document.querySelectorAll('.model');
+          const models = [
+            'chair.glb',
+            'lamp.glb',
+            'table.glb'
+          ];
           let selectedModelIndex = 0;
           const numModels = models.length;
 
-          // Add click event listener
+          // Add click/touch event listener
           this.el.sceneEl.addEventListener('click', e => {
             const reticle = document.getElementById('reticle');
-            if (reticle && reticle.getAttribute('visible')) {
+            if (reticle && reticle.getAttribute('visible') === 'true') {
               const position = reticle.getAttribute('position');
-              const rotation = reticle.getAttribute('rotation');
-              const model = models[selectedModelIndex].cloneNode(true);
+              const rotation = { x: 0, y: 0, z: 0 }; // Default rotation
 
-              // Set model position, rotation, and make it visible
+              // Create a new model entity
+              const model = document.createElement('a-gltf-model');
+              model.setAttribute('src', `models/${models[selectedModelIndex]}`);
               model.setAttribute('position', position);
               model.setAttribute('rotation', rotation);
+              model.setAttribute('scale', '0.5 0.5 0.5');
               model.setAttribute('visible', 'true');
+
+              // Append the model to the scene
               this.el.sceneEl.appendChild(model);
 
-              // Cycle through the models
+              // Cycle through the models for next placement
               selectedModelIndex = (selectedModelIndex + 1) % numModels;
             }
           });
@@ -68,31 +135,31 @@
     </div>
 
     <a-scene
+      xr-hit-test
+      tap-place
       embedded
       vr-mode-ui="enabled: false"
       renderer="antialias: true; colorManagement: true; physicallyCorrectLights"
       webxr="optionalFeatures: hit-test; requiredFeatures: hit-test,local-floor"
-      tap-place
     >
-      <!-- Reticle for hit testing -->
+      <!-- Reticle for Hit Testing -->
       <a-entity id="reticle" 
                 position="0 0 0"
-                visible="false"
-                ar-hit-test="target: #reticle;">
-        <a-ring material="color: green; shader: flat;" radius-inner="0.045" radius-outer="0.05"></a-ring>
-        <a-cylinder material="color: green; shader: flat;" height="0.1" radius="0.005" position="0 0.05 0"></a-cylinder>
+                visible="false">
+        <a-ring 
+          material="color: green; shader: flat;" 
+          radius-inner="0.045" 
+          radius-outer="0.05">
+        </a-ring>
+        <a-cylinder 
+          material="color: green; shader: flat;" 
+          height="0.1" 
+          radius="0.005" 
+          position="0 0.05 0">
+        </a-cylinder>
       </a-entity>
 
-      <!-- Furniture Models -->
-      <!-- These are templates and will be cloned upon placement -->
-      <!-- Chair Model -->
-      <a-gltf-model id="chairModel" class="model" src="models/chair.glb" visible="false" scale="0.5 0.5 0.5"></a-gltf-model>
-      <!-- Lamp Model -->
-      <a-gltf-model id="lampModel" class="model" src="models/lamp.glb" visible="false" scale="0.5 0.5 0.5"></a-gltf-model>
-      <!-- Table Model -->
-      <a-gltf-model id="tableModel" class="model" src="models/table.glb" visible="false" scale="0.5 0.5 0.5"></a-gltf-model>
-
-      <!-- Lighting (optional but enhances model appearance) -->
+      <!-- Lighting to Enhance Model Appearance -->
       <a-entity light="type: ambient; intensity: 0.5;"></a-entity>
       <a-entity light="type: directional; intensity: 0.5;" position="0 1 0"></a-entity>
 
